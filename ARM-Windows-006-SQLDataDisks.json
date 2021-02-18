@@ -1,0 +1,520 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "pResourceGroupName": {
+      "type": "string"
+    },
+
+    "pVNETResourceGroupName": {
+      "type": "string"
+    },
+    "pVNETName": {
+      "type": "string"
+    },
+    "pSubnetName": {
+      "type": "string"
+    },
+    "pAvailabilitySetName": {
+      "type": "string"
+    },
+    "pLoadBalancerName": {
+      "type": "string"
+    },
+    "pVMSize": {
+      "type": "string"
+    },
+    "pVMCount": {
+      "defaultValue": 1,
+      "type": "int",
+      "minValue": 1
+    },
+    "pVMCountStart": {
+      "type": "int",
+      "defaultValue": 1,
+      "minValue": 1
+    },
+    "pVMNamePrefix": {
+      "type": "string"
+    },
+    "pOSDiskSize": {
+      "type": "int",
+      "defaultValue": 256
+    },
+    "pOSDiskType": {
+      "type": "string",
+      "defaultValue": "Standard_LRS",
+      "allowedValues": [
+        "Standard_LRS",
+        "Standard_GRS",
+        "Standard_RAGRS",
+        "Standard_ZRS",
+        "StandardSSD_LRS",
+        "Premium_LRS"
+      ],
+      "metadata": {
+        "description": "Storage Account type."
+      }
+    },
+    "pOSDiskHostCaching": {
+      "type": "string",
+      "defaultValue": "ReadWrite",
+      "allowedValues": [
+        "",
+        "ReadOnly",
+        "ReadWrite"
+      ],
+      "metadata": {
+        "description": "Data disk caching type for the os disk."
+      }
+    },
+    "pAdminUsername": {
+      "type": "string"
+    },
+    "pAdminPassword": {
+      "type": "string"
+    },
+    "pSuffixPaddingLength": {
+      "type": "int",
+      "defaultValue": 3,
+      "minValue": 2,
+      "maxValue": 3
+    },
+    "pOSPublisher": {
+      "type": "string"
+    },
+    "pOSOffer": {
+      "type": "string"
+    },
+    "pOSSKU": {
+     "type": "string"
+    },
+    "pOSVersion": {
+      "defaultValue": "latest",
+      "type": "string"
+    },
+    "pDataDiskCount": {
+      "defaultValue": 1,
+      "type": "int",
+      "minValue": 1
+    },
+    "pDataDiskSize": {
+      "defaultValue": 256,
+      "type": "int"
+    },
+    "pDataDiskType": {
+      "type": "string",
+      "defaultValue": "Standard_LRS",
+      "allowedValues": [
+        "Standard_LRS",
+        "Standard_GRS",
+        "Standard_RAGRS",
+        "Standard_ZRS",
+        "StandardSSD_LRS",
+        "Premium_LRS"
+      ],
+      "metadata": {
+        "description": "Storage Account type."
+      }
+    },
+    "pDataDiskHostCaching": {
+      "type": "string",
+      "defaultValue": "ReadOnly",
+      "allowedValues": [
+        "",
+        "ReadOnly",
+        "ReadWrite"
+      ],
+      "metadata": {
+        "description": "Data disk caching type for the os disk."
+      }
+    },
+    "pPlatformUpdateDomainCount": {
+    "defaultValue": "5",
+    "type": "int",
+    "minValue": 0,
+    "maxValue": 99
+    },
+    "pPlatformFaultDomainCount": {
+    "defaultValue": "5",
+    "type": "int",
+    "minValue": 0,
+    "maxValue": 99
+    },
+    "pOSLicenseType": {
+      "type": "string",
+      "defaultValue": "PAYG",
+      "allowedValues": [
+        "PAYG",
+        "BYOL"
+      ],
+      "metadata": {
+        "description": "OS License Type."
+      }
+    },
+    "sqlVirtualMachineLocation": {
+        "type": "string"
+    },
+    "sqlVirtualMachineName": {
+        "type": "string"
+    },
+    "sqlConnectivityType": {
+        "type": "string"
+    },
+    "sqlPortNumber": {
+        "type": "int"
+    },
+    "sqlStorageDisksCount": {
+        "type": "int"
+    },
+    "sqlStorageWorkloadType": {
+        "type": "string"
+    },
+    "sqlStorageDisksConfigurationType": {
+        "type": "string"
+    },
+    "sqlStorageStartingDeviceId": {
+        "type": "int"
+    },
+    "sqlStorageDeploymentToken": {
+        "type": "int"
+    },
+    "sqlAutopatchingDayOfWeek": {
+        "type": "string"
+    },
+    "sqlAutopatchingStartHour": {
+        "type": "string"
+    },
+    "sqlAutopatchingWindowDuration": {
+        "type": "string"
+    },
+    "dataPath": {
+        "type": "string"
+    },
+    "dataDisksLUNs": {
+        "type": "array"
+    },
+    "logPath": {
+        "type": "string"
+    },
+    "logDisksLUNs": {
+        "type": "array"
+    },
+    "tempDbPath": {
+        "type": "string"
+    },
+    "rServicesEnabled": {
+        "type": "string"
+    }
+
+  },
+
+  "variables": {
+    "vNumDisksPerVM": "[add(parameters('pDataDiskCount'), 0)]",
+    "vSuffixPaddingLength": "[parameters('pSuffixPaddingLength')]",
+    "vVNETid": "[resourceId(parameters('pVNETResourceGroupName'), 'Microsoft.Network/virtualNetworks', parameters('pVNETName'))]",
+    "vSubnetID": "[concat(variables('vVNETid'),'/subnets/', parameters('pSubnetName'))]",
+    "vInternalLoadBalancerID": "[resourceId('Microsoft.Network/loadBalancers', parameters('pLoadBalancerName'))]",
+    "vInternalLoadBalancerIPConfig": "[concat(variables('vInternalLoadBalancerID'),'/frontendIPConfigurations/',parameters('pLoadBalancerName'))]",
+    "vInternalLoadBalancerBackendPool": "[concat(variables('vInternalLoadBalancerID'),'/backendAddressPools/',parameters('pLoadBalancerName'))]",
+    "vInternalLoadBalancerProbe": "[concat(variables('vInternalLoadBalancerID'),'/probes/','LBProbe-443tcp')]",
+    "vLicenseType" : "[if(equals(parameters('pOSLicenseType'), 'BYOL'), 'Windows_Server' , 'None')]"
+
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Compute/availabilitySets",
+      "name": "[parameters('pAvailabilitySetName')]",
+      "apiVersion": "2017-03-30",
+      "sku": {
+        "name": "Aligned"
+      },
+      "location": "[resourceGroup().location]",
+      "properties": {
+        "platformUpdateDomainCount": "[parameters( 'pPlatformUpdateDomainCount') ]",
+        "platformFaultDomainCount": "[parameters( 'pPlatformFaultDomainCount') ]"
+      },
+
+      "resources": [],
+      "dependsOn": []
+    },
+    {
+      "type": "Microsoft.Compute/virtualMachines",
+      "name": "[concat(parameters('pVMNamePrefix'), padLeft( copyIndex(parameters('pVMCountStart')), variables('vSuffixPaddingLength'), '0') )]",
+      "apiVersion": "2018-06-01",
+      "location": "[resourceGroup().location]",
+      "copy": {
+        "count": "[parameters('pVMCount')]",
+        "name": "CreateVMs"
+      },
+      "properties": {
+        "availabilitySet": {
+          "id": "[resourceId('Microsoft.Compute/availabilitySets/', parameters('pAvailabilitySetName'))]"
+        },
+        "hardwareProfile": {
+          "vmSize": "[parameters('pVMSize')]"
+        },
+        "storageProfile": {
+          "copy": [
+            {
+              "name": "dataDisks",
+              "count": "[variables('vNumDisksPerVM')]",
+              "input": {
+                "name": "[concat(parameters('pVMNamePrefix'),padLeft( copyIndex(parameters('pVMCountStart')), variables('vSuffixPaddingLength'), '0' ), '-dataDisk', padLeft(copyIndex('dataDisks'), variables('vSuffixPaddingLength'), '0') ) ]",
+                "lun": "[copyIndex('dataDisks')]",
+                "createOption": "Empty",
+                "caching": "[parameters('pOSDiskHostCaching')]",
+                "diskSizeGB": "[parameters('pDataDiskSize')]",
+                "managedDisk": {
+                  "storageAccountType": "[parameters('pDataDiskType')]"
+                }
+              }
+            }
+          ],
+          "imageReference": {
+            "publisher": "[parameters('pOSPublisher')]",
+            "offer": "[parameters('pOSOffer')]",
+            "sku": "[parameters('pOSSKU')]",
+            "version": "[parameters('pOSVersion')]"
+          },
+          "osDisk": {
+            "name": "[concat(parameters('pVMNamePrefix'),padLeft( copyIndex(parameters('pVMCountStart')), variables('vSuffixPaddingLength'), '0' ), '-osDisk')]",
+            "createOption": "FromImage",
+            "caching": "[parameters('pDataDiskHostCaching')]",
+            "diskSizeGB": "[parameters('pOSDiskSize')]",
+            "managedDisk": {
+              "storageAccountType": "[parameters('pOSDiskType')]"
+            }
+          }
+        },
+        "licenseType" : "[variables('vLicenseType')]",
+        "osProfile": {
+          "computerName": "[concat(parameters('pVMNamePrefix'),padLeft( copyIndex(parameters('pVMCountStart')), variables('vSuffixPaddingLength'), '0' ) )]",
+          "adminUsername": "[parameters('pAdminUsername')]",
+          "windowsConfiguration": {
+            "provisionVMAgent": true,
+            "enableAutomaticUpdates": true
+          },
+          "secrets": [],
+          "adminPassword": "[parameters('pAdminPassword')]"
+        },
+        "networkProfile": {
+          "networkInterfaces": [
+            {
+              "id": "[resourceId('Microsoft.Network/networkInterfaces/', concat(parameters('pVMNamePrefix'), padLeft( copyIndex(parameters('pVMCountStart')), variables('vSuffixPaddingLength'), '0' ), '-int00'))]"
+            }
+          ]
+        }
+      },
+      "resources": [        
+        {
+          "apiVersion": "2017-03-30",
+          "type": "Microsoft.Compute/virtualMachines/extensions",
+          "name": "[concat(parameters('pVMNamePrefix'), padLeft( copyIndex(parameters('pVMCountStart')), variables('vSuffixPaddingLength'), '0' ),'/WinRMCustomScriptExtension')]",
+          "location": "[resourceGroup().location]",
+          "dependsOn": [
+            "[resourceId('Microsoft.Compute/virtualMachines',concat(parameters('pVMNamePrefix'), padLeft( copyIndex(parameters('pVMCountStart')), variables('vSuffixPaddingLength'), '0' ) ))]"
+          ],
+          "properties": {
+            "publisher": "Microsoft.Compute",
+            "type": "CustomScriptExtension",
+            "typeHandlerVersion": "1.10",
+            "settings": {
+              "fileUris": [
+                "https://raw.githubusercontent.com/ansible/ansible/devel/examples/scripts/ConfigureRemotingForAnsible.ps1"
+              ],
+              "commandToExecute": "[concat('powershell -ExecutionPolicy Unrestricted -file ConfigureRemotingForAnsible.ps1 -ForceNewSSLCert -verbose' )]"
+            }
+          }
+        }
+      ],
+      "dependsOn": [
+        "[resourceId('Microsoft.Compute/availabilitySets/', parameters('pAvailabilitySetName'))]",
+        "CreateNICs"
+      ]
+    },
+    {
+        "name": "[parameters('sqlVirtualMachineName')]",
+        "type": "Microsoft.SqlVirtualMachine/SqlVirtualMachines",
+        "apiVersion": "2017-03-01-preview",
+        "location": "[resourceGroup().location]",
+        "properties": {
+            "virtualMachineResourceId": "[resourceId('Microsoft.Compute/virtualMachines', parameters('sqlVirtualMachineName') )]",
+            "sqlManagement": "Full",
+            "SqlServerLicenseType": "PAYG",
+            "AutoPatchingSettings": {
+                "Enable": true,
+                "DayOfWeek": "[parameters('sqlAutopatchingDayOfWeek')]",
+                "MaintenanceWindowStartingHour": "[parameters('sqlAutopatchingStartHour')]",
+                "MaintenanceWindowDuration": "[parameters('sqlAutopatchingWindowDuration')]"
+            },
+            "KeyVaultCredentialSettings": {
+                "Enable": false,
+                "CredentialName": ""
+            },
+            "StorageConfigurationSettings": {
+                "DiskConfigurationType": "[parameters('sqlStorageDisksConfigurationType')]",
+                "StorageWorkloadType": "[parameters('sqlStorageWorkloadType')]",
+                "SQLDataSettings": {
+                    "LUNs": "[parameters('dataDisksLUNs')]",
+                    "DefaultFilePath": "[parameters('dataPath')]"
+                },
+                "SQLLogSettings": {
+                    "LUNs": "[parameters('logDisksLUNs')]",
+                    "DefaultFilePath": "[parameters('logPath')]"
+                },
+                "SQLTempDbSettings": {
+                    "DefaultFilePath": "[parameters('tempDbPath')]"
+                }
+            },
+            "ServerConfigurationsManagementSettings": {
+                "SQLConnectivityUpdateSettings": {
+                    "ConnectivityType": "[parameters('sqlConnectivityType')]",
+                    "Port": "[parameters('sqlPortNumber')]",
+                    "SQLAuthUpdateUserName": "",
+                    "SQLAuthUpdatePassword": ""
+                },
+                "AdditionalFeaturesServerConfigurations": {
+                    "IsRServicesEnabled": "[parameters('rServicesEnabled')]"
+                }
+            }
+        },
+        "dependsOn": [
+            "[resourceId('Microsoft.Compute/virtualMachines', parameters('sqlVirtualMachineName'))]"
+        ]
+    },	
+    {
+      "type": "Microsoft.Network/loadBalancers",
+      "name": "[parameters('pLoadBalancerName')]",
+      "apiVersion": "2017-08-01",
+      "location": "[resourceGroup().location]",
+      "properties": {
+        "frontendIPConfigurations": [
+          {
+            "name": "[parameters('pLoadBalancerName')]",
+            "properties": {          
+              "privateIPAllocationMethod": "Dynamic",
+              "subnet": {
+                "id": "[variables('vSubnetID')]"
+              }
+            }
+          }
+        ],
+        "backendAddressPools": [
+          {
+            "name": "[parameters('pLoadBalancerName')]"
+          }
+        ],
+        "loadBalancingRules": [
+          {
+            "name": "LBRule-443to443tcp",
+            "properties": {
+              "frontendIPConfiguration": {
+                "id": "[variables('vInternalLoadBalancerIPConfig')]"
+              },
+              "frontendPort": 443,
+              "backendPort": 443,
+              "enableFloatingIP": false,
+              "idleTimeoutInMinutes": 4,
+              "protocol": "Tcp",
+              "loadDistribution": "Default",
+              "backendAddressPool": {
+                "id": "[variables('vInternalLoadBalancerBackendPool')]"
+              },
+              "probe": {
+                "id": "[variables('vInternalLoadBalancerProbe')]"
+              }
+            }
+          },
+          {
+            "name": "LBRule-80to80tcp",
+            "properties": {
+              "frontendIPConfiguration": {
+                "id": "[variables('vInternalLoadBalancerIPConfig')]"
+              },
+              "frontendPort": 80,
+              "backendPort": 80,
+              "enableFloatingIP": false,
+              "idleTimeoutInMinutes": 4,
+              "protocol": "Tcp",
+              "loadDistribution": "Default",
+              "backendAddressPool": {
+                "id": "[variables('vInternalLoadBalancerBackendPool')]"
+              },
+              "probe": {
+                "id": "[variables('vInternalLoadBalancerProbe')]"
+              }
+            }
+          }
+        ],
+        "probes": [
+          {
+            "name": "LBProbe-443tcp",
+            "properties": {
+              "protocol": "Tcp",
+              "port": 443,
+              "intervalInSeconds": 5,
+              "numberOfProbes": 3
+            }
+          },
+          {
+            "name": "LBProbe-WinRM",
+            "properties": {
+              "protocol": "Tcp",
+              "port": 5986,
+              "intervalInSeconds": 5,
+              "numberOfProbes": 5
+            }
+          }
+        ],
+        "outboundNatRules": [],
+        "inboundNatPools": []
+      },
+      "resources": [],
+      "dependsOn": []
+    },
+    {
+      "type": "Microsoft.Network/networkInterfaces",
+      "name": "[concat(parameters('pVMNamePrefix'),padLeft( copyIndex(parameters('pVMCountStart')), variables('vSuffixPaddingLength'), '0' ), '-int00')]",
+      "apiVersion": "2018-08-01",
+      "location": "[resourceGroup().location]",
+      "copy": {
+        "count": "[parameters('pVMCount')]",
+        "name": "CreateNICs"
+      },
+      "properties": {
+        "ipConfigurations": [
+          {
+            "name": "default-ip-config",
+            "properties": {
+              "privateIPAllocationMethod": "Dynamic",
+              "subnet": {
+                "id": "[variables('vSubnetID')]"
+              },
+              "loadBalancerBackendAddressPools": [
+                {
+                  "id": "[variables('vInternalLoadBalancerBackendPool')]"
+                }
+              ]
+            }
+          }
+        ],
+        "dnsSettings": {
+          "dnsServers": []
+        },
+        "enableIPForwarding": false
+      },
+      "resources": [],
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/loadBalancers/', parameters('pLoadBalancerName'))]"
+      ]
+    }
+  ],
+  "outputs": {
+    "pResourceGroupName": {
+      "value": "[parameters('pResourceGroupName')]",
+      "type": "string"
+    }
+  }
+}
+
